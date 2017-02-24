@@ -1,5 +1,6 @@
 package edu.sharif.behin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -47,7 +48,15 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         super.handleBinaryMessage(session, message);
         UUID fromUUID = UUID.fromString(uriTemplate.match(session.getUri().getPath()).get("uniqueId"));
         if(message.getPayloadLength()<Long.BYTES*3){
-            session.sendMessage(new TextMessage("Bad message format"));
+            StringMessage stringMessage=new StringMessage();
+            stringMessage.message = Constants.FAULT_MESSAGE;
+            stringMessage.uuid = Constants.SERVER_UUID;
+            try {
+                String result = new ObjectMapper().writeValueAsString(stringMessage);
+                session.sendMessage(new TextMessage(result));
+            }catch (Exception e){
+                logger.error("Cannot Parse String Message to Json",e);
+            }
             return;
         }
         ByteBuffer payload = message.getPayload();
@@ -66,6 +75,15 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
         if(toSession!=null){
             toSession.sendMessage(new BinaryMessage(buffer.array()));
         }else {
+            StringMessage stringMessage=new StringMessage();
+            stringMessage.message = Constants.NOT_FOUND_MESSAGE;
+            stringMessage.uuid = Constants.SERVER_UUID;
+            try {
+                String result = new ObjectMapper().writeValueAsString(stringMessage);
+                session.sendMessage(new TextMessage(result));
+            }catch (Exception e){
+                logger.error("Cannot Parse String Message to Json",e);
+            }
             session.sendMessage(new TextMessage(String.format("Destination %s is not online", toUUID)));
         }
     }
@@ -73,11 +91,23 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         super.handleTextMessage(session, message);
-
-        String uniqueId = uriTemplate.match(session.getUri().getPath()).get("uniqueId");
-
-        String payload = message.getPayload();
-        logger.info(String.format("unknown command received from %s, payload is %s ", uniqueId, payload));
+        UUID fromUUID = UUID.fromString(uriTemplate.match(session.getUri().getPath()).get("uniqueId"));
+        try {
+            StringMessage stringMessage = new ObjectMapper().readValue(message.getPayload(),StringMessage.class);
+            WebSocketSession toSession = sessionMap.get(stringMessage.uuid);
+            if(toSession!=null){
+                stringMessage.uuid = fromUUID;
+                toSession.sendMessage(new TextMessage(new ObjectMapper().writeValueAsString(stringMessage)));
+            }else {
+                stringMessage.message = Constants.NOT_FOUND_MESSAGE;
+                stringMessage.uuid = Constants.SERVER_UUID;
+                String result = new ObjectMapper().writeValueAsString(stringMessage);
+                session.sendMessage(new TextMessage(result));
+            }
+            stringMessage.uuid = fromUUID;
+        }catch (Exception e){
+            logger.error("Cannot Parse Message from :"+fromUUID,e);
+        }
     }
 
     @Override
