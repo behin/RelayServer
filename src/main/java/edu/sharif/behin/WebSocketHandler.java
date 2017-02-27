@@ -84,7 +84,6 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
             }catch (Exception e){
                 logger.error("Cannot Parse String Message to Json",e);
             }
-            session.sendMessage(new TextMessage(String.format("Destination %s is not online", toUUID)));
         }
     }
 
@@ -98,7 +97,7 @@ public class WebSocketHandler extends AbstractWebSocketHandler {
             if(toSession!=null){
                 stringMessage.uuid = fromUUID;
                 toSession.sendMessage(new TextMessage(new ObjectMapper().writeValueAsString(stringMessage)));
-            }else {
+            } else {
                 stringMessage.message = Constants.NOT_FOUND_MESSAGE;
                 stringMessage.uuid = Constants.SERVER_UUID;
                 String result = new ObjectMapper().writeValueAsString(stringMessage);
